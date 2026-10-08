@@ -8,7 +8,7 @@
 //! `/Rotate`), so items stay upright on rotated pages.
 
 use pdfcraft_cos::{Dict, Document, ObjRef, Object, PdfString, Stream};
-use pdfcraft_fonts::{helvetica_width, literal, win_ansi};
+use pdfcraft_fonts::{Std14, literal, win_ansi};
 
 use crate::{EditError, check, contents, n, page_list, place_tagged};
 
@@ -61,15 +61,27 @@ impl Family {
         (family, s.contains("Bold"), s.contains("Italic") || s.contains("Oblique"))
     }
 
-    /// Approximate advance width of `s` (standard-14 metrics are not bundled: Helvetica widths,
-    /// scaled for Times; Courier is monospaced).
+    /// Advance width of `s` at `size` points, from the published standard-14 metrics.
     pub fn width(self, s: &str, size: f64, bold: bool) -> f64 {
-        let w = match self {
-            Family::Courier => s.chars().count() as f64 * 0.6 * size,
-            Family::Times => helvetica_width(s, size) * 0.9,
-            Family::Helvetica => helvetica_width(s, size),
-        };
-        if bold { w * 1.05 } else { w }
+        self.std14(bold, false).text_width(s, size)
+    }
+
+    /// The standard-14 face this family means at the given style.
+    pub fn std14(self, bold: bool, italic: bool) -> Std14 {
+        match (self, bold, italic) {
+            (Family::Courier, false, false) => Std14::Courier,
+            (Family::Courier, true, false) => Std14::CourierBold,
+            (Family::Courier, false, true) => Std14::CourierOblique,
+            (Family::Courier, true, true) => Std14::CourierBoldOblique,
+            (Family::Times, false, false) => Std14::TimesRoman,
+            (Family::Times, true, false) => Std14::TimesBold,
+            (Family::Times, false, true) => Std14::TimesItalic,
+            (Family::Times, true, true) => Std14::TimesBoldItalic,
+            (Family::Helvetica, false, false) => Std14::Helvetica,
+            (Family::Helvetica, true, false) => Std14::HelveticaBold,
+            (Family::Helvetica, false, true) => Std14::HelveticaOblique,
+            (Family::Helvetica, true, true) => Std14::HelveticaBoldOblique,
+        }
     }
 }
 
