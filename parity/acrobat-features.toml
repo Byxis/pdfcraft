@@ -9349,8 +9349,8 @@ tier = "P0"
 milestone = "M13"
 status = "shipped"
 commands = []
-tools = []
-evidence = ["crates/automation/tests/automation.rs::mcp_session_over_stdio", "crates/automation/tests/automation.rs::mcp_errors"]
+tools = ["command_list", "command_run", "command_batch", "doc_inspect", "render_preview"]
+evidence = ["crates/automation/tests/automation.rs::mcp_session_over_stdio", "crates/automation/tests/automation.rs::mcp_errors", "crates/automation/tests/automation.rs::conventions_core_tools_preserve_root_and_batch_errors", "crates/automation/tests/automation.rs::conventions_annotations_and_strict_keys_in_both_modes"]
 notes = ""
 
 [[feature]]
@@ -9374,7 +9374,7 @@ milestone = "M13"
 status = "shipped"
 commands = []
 tools = ["doc_info", "text_extract", "page_render"]
-evidence = ["crates/automation/tests/automation.rs::mcp_resources_expose_open_documents", "crates/automation/src/mcp.rs::resource_uris_parse"]
+evidence = ["crates/automation/tests/automation.rs::mcp_resources_expose_open_documents", "crates/automation/src/mcp.rs::resource_uris_parse", "crates/automation/tests/automation.rs::conventions_resources_and_modern_results"]
 notes = "resources/list, resources/templates/list and resources/read: pdfcraft://doc/{doc}/info (JSON), /text, /page/{page}/text, /page/{page}/image?dpi= (PNG)"
 
 [[feature]]

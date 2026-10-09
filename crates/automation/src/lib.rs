@@ -14,6 +14,7 @@
 mod a11y;
 mod comments;
 mod content;
+mod conventions;
 mod forms;
 mod links;
 #[cfg(feature = "mcp")]
@@ -215,6 +216,10 @@ impl Automation {
                 json!({ "redone": label, "document": summary(self.doc(&a)?) })
             }
             "command_list" => self.command_list(&a)?,
+            "command_run" => return self.command_run(&a),
+            "command_batch" => self.command_batch(&a)?,
+            "doc_inspect" => self.doc_inspect(&a)?,
+            "render_preview" => return self.render_preview(&a).map(|c| vec![c]),
             "page_number" => {
                 use pdfcraft_organize::LabelStyle as L;
                 let n = self.doc(&a)?.info.pages.len();
@@ -1439,6 +1444,8 @@ impl Automation {
             Some(_) => Some(self.doc(a)?.id),
             None => None,
         };
+        let filter = a.opt_str("filter")?.unwrap_or("").to_lowercase();
+        let enabled_only = a.opt_bool("enabled_only")?.unwrap_or(false);
         let list: Vec<Value> = commands::COMMANDS
             .iter()
             .map(|c| {
@@ -1449,7 +1456,16 @@ impl Automation {
                     "shortcut": c.shortcut.map(|s| s.label(cfg!(target_os = "macos"))),
                     "enabled": commands::is_enabled(c, &self.session, active),
                     "tool": tools::tool_for_command(c.id),
+                    "params": tools::tool_for_command(c.id).and_then(tools::find).map(|t| &t.input_schema),
                 })
+            })
+            .collect();
+        let list: Vec<Value> = list
+            .into_iter()
+            .filter(|c| {
+                (!enabled_only || c.get("enabled").and_then(Value::as_bool) == Some(true))
+                    && (filter.is_empty()
+                        || ["id", "label", "menu"].iter().any(|k| c.get(k).is_some_and(|v| v.to_string().to_lowercase().contains(&filter))))
             })
             .collect();
         Ok(json!({ "commands": list }))
