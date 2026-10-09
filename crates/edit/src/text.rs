@@ -16,7 +16,7 @@ use std::rc::Rc;
 use pdfcraft_content::{Matrix, Op, parse, serialize_ops};
 use pdfcraft_cos::{Dict, Document, Object, PdfString, Stream};
 use pdfcraft_fonts::pdf::Metrics;
-use pdfcraft_fonts::{GlyphError, japanese_glyph};
+use pdfcraft_fonts::{CraftFont, GlyphError, japanese_glyph_from};
 
 use crate::EditError;
 
@@ -510,7 +510,9 @@ fn source_family(base_font: &str) -> crate::added::Family {
     let name = base_font.to_ascii_lowercase();
     if ["courier", "mono", "consolas", "menlo", "monaco", "lucida console"].iter().any(|s| name.contains(s)) {
         crate::added::Family::Courier
-    } else if !name.contains("sans") && ["times", "serif", "roman", "cambria", "georgia", "palatino", "garamond"].iter().any(|s| name.contains(s)) {
+    } else if !name.contains("sans")
+        && ["times", "serif", "roman", "mincho", "cambria", "georgia", "palatino", "garamond"].iter().any(|s| name.contains(s))
+    {
         crate::added::Family::Times
     } else {
         crate::added::Family::Helvetica
@@ -533,8 +535,8 @@ fn pdf_num(v: f64) -> String {
     if v.fract() == 0.0 { format!("{v:.0}") } else { format!("{v:.4}").trim_end_matches('0').trim_end_matches('.').to_string() }
 }
 
-fn type3_path(ch: char) -> Result<(Vec<u8>, f64), EditError> {
-    let glyph = japanese_glyph(ch).map_err(|e| match e {
+fn type3_path(face: &CraftFont, ch: char) -> Result<(Vec<u8>, f64), EditError> {
+    let glyph = japanese_glyph_from(face, ch).map_err(|e| match e {
         GlyphError::NoFont => no_japanese_font(),
         GlyphError::Missing => EditError::Invalid(format!("Japanese fallback font has no glyph for U+{:04X}", ch as u32)),
         GlyphError::TooComplex => EditError::Invalid(format!("Japanese fallback glyph U+{:04X} is too complex", ch as u32)),
@@ -568,9 +570,13 @@ fn no_japanese_font() -> EditError {
     )
 }
 
-fn type3_font(doc: &mut Document, fonts_res: &mut Dict, text: &str) -> Result<Type3Fallback, EditError> {
-    let face = pdfcraft_fonts::document_japanese_font().ok_or_else(no_japanese_font)?;
-    let family = face.family;
+/// The first of `faces` (best match first) that has a glyph for every one of `chars`, else the first.
+fn fallback_face<'a>(faces: &[&'a CraftFont], chars: &[char], has_glyph: impl Fn(&CraftFont, char) -> bool) -> Option<&'a CraftFont> {
+    faces.iter().copied().find(|face| chars.iter().all(|ch| has_glyph(face, *ch))).or_else(|| faces.first().copied())
+}
+
+fn type3_font(doc: &mut Document, fonts_res: &mut Dict, text: &str, family: crate::added::Family, bold: bool) -> Result<Type3Fallback, EditError> {
+    let faces = pdfcraft_fonts::document_japanese_fonts_for_style(family == crate::added::Family::Times, bold);
     let mut chars = Vec::new();
     for ch in text.chars() {
         if !chars.contains(&ch) {
@@ -583,6 +589,10 @@ fn type3_font(doc: &mut Document, fonts_res: &mut Dict, text: &str) -> Result<Ty
     if chars.is_empty() {
         return Err(EditError::Invalid("replacement text is empty".into()));
     }
+    // The faces differ in coverage (e.g. of Cyrillic), so use the best face that has every
+    // character. When none has them all, the best face reports the character it lacks.
+    let face = fallback_face(&faces, &chars, |face, ch| japanese_glyph_from(face, ch).is_ok()).ok_or_else(no_japanese_font)?;
+    let family = face.family;
     let mut codes = Vec::with_capacity(chars.len());
     let mut charprocs = Dict::new();
     let mut widths = Vec::with_capacity(chars.len());
@@ -594,7 +604,7 @@ fn type3_font(doc: &mut Document, fonts_res: &mut Dict, text: &str) -> Result<Ty
     for (i, ch) in chars.into_iter().enumerate() {
         let code = u8::try_from(i + 1).map_err(|_| EditError::Invalid("Japanese replacement has too many unique characters".into()))?;
         let glyph_name = format!("g{code:02X}");
-        let (path, width) = type3_path(ch)?;
+        let (path, width) = type3_path(face, ch)?;
         let mut pd = Dict::new();
         pd.set(b"Length".to_vec(), path.len() as i64);
         let proc_ref = doc.add(Object::Stream(Stream::from_raw(pd, path)));
@@ -679,7 +689,7 @@ pub fn replace_line(doc: &mut Document, page: usize, line: usize, text: &str) ->
         Some(bytes) => replacement.push(Op::new("Tj", vec![Object::String(PdfString::literal(bytes))])),
         None => {
             if needs_type3(&text) {
-                let fallback = type3_font(doc, &mut fonts_res, &text)?;
+                let fallback = type3_font(doc, &mut fonts_res, &text, source_family(&target.base_font), target.bold)?;
                 let bytes = type3_encode(&fallback, &text)
                     .ok_or_else(|| EditError::Invalid(format!("\"{text}\" can't be shown by the Japanese fallback")))?;
                 let size = font_size_before(&ops, first).unwrap_or(target.size);
@@ -866,6 +876,8 @@ pub fn replace_block(doc: &mut Document, page: usize, block: usize, text: &str) 
 pub struct BlockStyle {
     /// A standard font family, bold, italic.
     pub family: Option<(crate::added::Family, bool, bool)>,
+    /// Override weight without choosing a different family (`None` keeps the source weight).
+    pub bold: Option<bool>,
     /// Font size in points (user space).
     pub size: Option<f64>,
     /// Fill colour (RGB 0–1).
@@ -913,10 +925,11 @@ pub fn rewrite_block(doc: &mut Document, page: usize, block: usize, text: Option
     }
     let o_state = ts_state.clone();
     let metrics = fonts_res.get(font_name.as_bytes()).and_then(|f| doc.resolve(f).as_dict().cloned()).map(|d| Metrics::from_dict(doc, &d));
-    let reuse = style.family.is_none() && metrics.as_ref().is_some_and(|m| m.encode(&text).is_some());
-    let type3 = if !reuse && needs_type3(&text) { Some(type3_font(doc, &mut fonts_res, &text)?) } else { None };
-    // The standard font used when the paragraph's own can't be (chosen, or substituted).
+    let reuse = style.family.is_none() && style.bold.is_none() && metrics.as_ref().is_some_and(|m| m.encode(&text).is_some());
+    // The chosen style also determines the real Japanese fallback outlines and advances.
     let (family, bold, italic) = style.family.unwrap_or((source_family(&b.base_font), b.bold, b.italic));
+    let bold = style.bold.unwrap_or(bold);
+    let type3 = if !reuse && needs_type3(&text) { Some(type3_font(doc, &mut fonts_res, &text, family, bold)?) } else { None };
     let std_width = move |s: &str, size: f64| -> f64 {
         match family {
             crate::added::Family::Courier => s.chars().count() as f64 * 0.6 * size,
@@ -1132,5 +1145,21 @@ mod tests {
         assert_eq!(wrap("A\u{a0}B C", 3.0, width), ["A B", "C"]);
         assert_eq!(wrap("A\u{2028}B C", 3.0, width), ["A B", "C"]);
         assert_eq!(wrap(" \tA  B\r\nC ", 3.0, width), ["A B", "C"]);
+    }
+
+    #[test]
+    fn fallback_face_moves_on_when_the_best_face_lacks_a_character() {
+        static JPAN: &[&str] = &["Jpan"];
+        let mincho = CraftFont { family: "Mincho", style: "Regular", scripts: JPAN, bytes: b"" };
+        let gothic = CraftFont { family: "Gothic", style: "Regular", scripts: JPAN, bytes: b"" };
+        let faces = [&mincho, &gothic];
+        // Only the Gothic face has the Cyrillic letter.
+        let has = |face: &CraftFont, ch: char| ch.is_ascii() || face.family == "Gothic";
+        assert_eq!(fallback_face(&faces, &['a', 'ф'], has).map(|f| f.family), Some("Gothic"));
+        // Characters the best face has keep it.
+        assert_eq!(fallback_face(&faces, &['a', 'b'], has).map(|f| f.family), Some("Mincho"));
+        // No face has them all: the best face stays, and names the missing glyph.
+        assert_eq!(fallback_face(&faces, &['a', 'ф'], |_, ch| ch.is_ascii()).map(|f| f.family), Some("Mincho"));
+        assert!(fallback_face(&[], &['a'], has).is_none());
     }
 }

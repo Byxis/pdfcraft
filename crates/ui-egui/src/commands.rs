@@ -133,6 +133,17 @@ impl PdfCraftApp {
                     self.views[i].open_find();
                 }
             }
+            "view.focus_page_input" => {
+                if let (Some(ctx), Some(view)) = (self.ctx.clone(), active.and_then(|i| self.views.get(i))) {
+                    // The page box in the toolbar (chrome.rs); select its number so typing replaces it.
+                    let id = egui::Id::new("page-input");
+                    ctx.memory_mut(|m| m.request_focus(id));
+                    let mut state = egui::TextEdit::load_state(&ctx, id).unwrap_or_default();
+                    let len = view.page_input.chars().count();
+                    state.cursor.set_char_range(Some(egui::text::CCursorRange::two(egui::text::CCursor::new(0), egui::text::CCursor::new(len))));
+                    state.store(&ctx, id);
+                }
+            }
             "view.palette" => self.palette_open = !self.palette_open,
             layout if crate::canvas::PageLayout::from_command(layout).is_some() => {
                 if let (Some(i), Some(layout)) = (active, crate::canvas::PageLayout::from_command(layout)) {
@@ -169,13 +180,13 @@ impl PdfCraftApp {
             "view.theme.system" => self.set_theme_preference(ThemePreference::System),
             "view.theme.light" => self.set_theme_preference(ThemePreference::Light),
             "view.theme.dark" => self.set_theme_preference(ThemePreference::Dark),
-            "comment.list" => self.right = Some(RightPanel::Comments),
+            "comment.list" => self.choose_right_panel(Some(RightPanel::Comments)),
             tool if crate::comments::CommentTool::from_command(tool).is_some() => {
                 let Some(tool) = crate::comments::CommentTool::from_command(tool) else { return false };
                 self.comment_prefs.group_tool[tool.group()] = tool;
                 self.quick_tool = crate::QuickTool::Comment(tool);
-                // Acrobat opens the Comments panel with the commenting tools.
-                if self.right.is_none() {
+                // Acrobat opens the Comments panel with the commenting tools, unless the user closed it.
+                if self.right.is_none() && !self.comments_panel_closed {
                     self.right = Some(RightPanel::Comments);
                 }
                 // A text selection made before picking a markup tool is marked right away.
