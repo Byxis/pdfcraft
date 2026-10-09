@@ -1733,10 +1733,36 @@ fn editing_existing_images_on_the_page() {
     // A page made from a 40 × 20 image (at 72 dpi: a 40 × 20 pt page filled by it).
     let mut png = Vec::new();
     image::RgbImage::from_pixel(80, 40, image::Rgb([200, 40, 40])).write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).unwrap();
+    check_existing_artwork("picture.png", png);
+}
+
+#[test]
+fn editing_existing_form_artwork_on_the_page() {
+    use pdfcraft_cos::{Dict, Document, Object, SaveOptions, Stream, write_incremental};
+    let mut doc = Document::open(std::sync::Arc::new(fixture(1))).unwrap();
+    let page = pdfcraft_model::pages(&doc)[0].clone();
+    let mut form = Dict::new();
+    form.set(b"Subtype".to_vec(), Object::name("Form"));
+    form.set(b"BBox".to_vec(), Object::Array([0, 0, 200, 300].map(Object::Int).to_vec()));
+    let artwork = doc.add(Object::Stream(Stream::flate(form, b"0.2 0.5 0.9 rg 20 20 160 260 re f")));
+    let contents = doc.add(Object::Stream(Stream::flate(Dict::new(), b"/Figure Do")));
+    doc.update_dict(page.obj, |d| {
+        d.set(b"Contents".to_vec(), Object::Ref(contents));
+        let mut xo = Dict::new();
+        xo.set(b"Figure".to_vec(), Object::Ref(artwork));
+        let mut resources = Dict::new();
+        resources.set(b"XObject".to_vec(), Object::Dict(xo));
+        d.set(b"Resources".to_vec(), Object::Dict(resources));
+    })
+    .unwrap();
+    check_existing_artwork("figure.pdf", write_incremental(&doc, &SaveOptions::default()).unwrap());
+}
+
+fn check_existing_artwork(name: &'static str, bytes: Vec<u8>) {
     let mut h = Harness::builder().with_size(egui::vec2(1400.0, 900.0)).build_eframe(move |_cc| {
         let mut app = PdfCraftApp::new();
         app.set_option("language", "en").unwrap();
-        app.open_bytes("picture.png", None, png.clone()).expect("opens");
+        app.open_bytes(name, None, bytes.clone()).expect("opens");
         app
     });
     h.run_steps(4);

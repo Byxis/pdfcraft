@@ -954,6 +954,56 @@ fn page_images_move_turn_replace_and_delete() {
 }
 
 #[test]
+fn form_artwork_edits_only_the_selected_placement() {
+    let mut doc = fixture(); // three pages share resources; pages 0 and 1 also share contents
+    let mut form = Dict::new();
+    form.set(b"Subtype".to_vec(), Object::name("Form"));
+    form.set(b"BBox".to_vec(), Object::Array([10, 20, 110, 70].map(Object::Int).to_vec()));
+    form.set(b"Matrix".to_vec(), Object::Array([2, 0, 0, 3, -20, -60].map(Object::Int).to_vec()));
+    let artwork = doc.add(Object::Stream(Stream::flate(form, b"1 0 0 rg 10 20 100 50 re f")));
+    doc.update_dict(pdfcraft_cos::ObjRef::new(6, 0), |d| {
+        let mut xo = Dict::new();
+        xo.set(b"Figure".to_vec(), Object::Ref(artwork));
+        d.set(b"XObject".to_vec(), Object::Dict(xo));
+    })
+    .unwrap();
+    let content = b"q 1 0 0 1 40 80 cm /Figure Do Q q 1 0 0 1 300 400 cm /Figure Do Q BT /F1 9 Tf (Caption) Tj ET";
+    doc.set(pdfcraft_cos::ObjRef::new(7, 0), Object::Stream(Stream::flate(Dict::new(), content)));
+    let mut doc = reopen(&doc);
+    let original = doc.get(artwork);
+    let imgs = images::page_images(&doc, 0).unwrap();
+    assert_eq!(imgs.len(), 2);
+    assert!(imgs[0].is_form);
+    assert_eq!((imgs[0].width, imgs[0].height), (0, 0));
+    assert!(close(imgs[0].rect, [40.0, 80.0, 240.0, 230.0]));
+    let target = [60.0, 100.0, 160.0, 175.0];
+    images::change_image(&mut doc, 0, 0, &images::ImageChange::Transform(images::rect_to_rect(imgs[0].rect, target))).unwrap();
+    let mut doc = reopen(&doc);
+    let moved = images::page_images(&doc, 0).unwrap();
+    assert!(close(moved[0].rect, target));
+    assert_eq!(moved[1].rect, imgs[1].rect);
+    assert_eq!(images::page_images(&doc, 1).unwrap()[0].rect, imgs[0].rect);
+    assert_eq!(*doc.get(artwork), *original, "the shared Form and its unknown data are untouched");
+    assert_eq!(text::text_lines(&doc, 0).unwrap()[0].text, "Caption");
+    let t = images::turn_about_centre(target, 1, false, false);
+    images::change_image(&mut doc, 0, 0, &images::ImageChange::Transform(t)).unwrap();
+    assert!(close(images::page_images(&doc, 0).unwrap()[0].rect, [72.5, 87.5, 147.5, 187.5]));
+    assert!(images::change_image(&mut doc, 0, 0, &images::ImageChange::Replace(artwork)).is_err());
+    images::change_image(&mut doc, 0, 0, &images::ImageChange::Delete).unwrap();
+    let doc = reopen(&doc);
+    assert_eq!(images::page_images(&doc, 0).unwrap().len(), 1);
+    assert_eq!(images::page_images(&doc, 1).unwrap().len(), 2);
+    // Invalid bounds are skipped without interpreting the Form stream.
+    let mut doc = doc;
+    let mut broken = (*doc.get(artwork)).clone();
+    if let Object::Stream(s) = &mut broken {
+        s.dict.set(b"BBox".to_vec(), Object::Array(vec![Object::Int(0)]));
+    }
+    doc.set(artwork, broken);
+    assert!(images::page_images(&doc, 0).unwrap().is_empty());
+}
+
+#[test]
 fn paragraphs_take_new_formatting() {
     let mut doc = text_page("BT /F1 10 Tf 12 TL 100 700 Td (One two three four five six seven) Tj T* (eight nine ten eleven twelve) Tj ET");
     let before = text::text_blocks(&doc, 0).unwrap()[0].clone();

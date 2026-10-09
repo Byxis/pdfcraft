@@ -2047,7 +2047,7 @@ status = "shipped"
 commands = ["edit.edit_text"]
 tools = ["image_edit"]
 evidence = ["crates/edit/src/tests.rs::page_images_move_turn_replace_and_delete", "crates/ui-egui/tests/editing.rs::editing_existing_images_on_the_page", "crates/automation/tests/automation.rs::editing_page_images_through_tools"]
-notes = "existing page images: rotate either way about the centre, flip horizontally or vertically (a q/cm/Q wrapper); added images too"
+notes = "existing raster images and grouped Form artwork: rotate either way about the centre, flip horizontally or vertically (a q/cm/Q wrapper); Forms stay intact as groups; added images too"
 
 [[feature]]
 id = "edit.image-move-resize"
@@ -2058,8 +2058,8 @@ milestone = "M7"
 status = "shipped"
 commands = ["edit.edit_text"]
 tools = ["image_edit"]
-evidence = ["crates/edit/src/tests.rs::page_images_move_turn_replace_and_delete", "crates/ui-egui/tests/editing.rs::editing_existing_images_on_the_page", "crates/automation/tests/automation.rs::editing_page_images_through_tools"]
-notes = "existing page images: select, drag to move, drag a corner to resize keeping proportions; Delete removes; added images too"
+evidence = ["crates/edit/src/tests.rs::form_artwork_edits_only_the_selected_placement", "crates/ui-egui/tests/editing.rs::editing_existing_form_artwork_on_the_page", "crates/automation/tests/automation.rs::editing_form_artwork_through_tools", "crates/edit/src/tests.rs::page_images_move_turn_replace_and_delete", "crates/ui-egui/tests/editing.rs::editing_existing_images_on_the_page", "crates/automation/tests/automation.rs::editing_page_images_through_tools"]
+notes = "existing raster images and grouped Form artwork: select, drag to move, drag a corner to resize keeping proportions; Delete removes one placement. Forms include their nested content as a group; individual internal elements and inline images are not supported. See docs/editing-images.md; added images too"
 
 [[feature]]
 id = "edit.image-extract"

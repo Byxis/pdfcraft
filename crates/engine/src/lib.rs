@@ -269,6 +269,9 @@ impl Document {
     pub fn page_image_file(&self, page: usize, index: usize) -> Result<(&'static str, Vec<u8>), String> {
         let editor = self.editor.as_ref().ok_or("the document can't be read")?;
         let img = self.page_images(page).into_iter().nth(index).ok_or_else(|| format!("page {} has no image {}", page + 1, index + 1))?;
+        if img.is_form {
+            return Err("grouped Form artwork is not a bitmap; Save Image As is only available for raster images".into());
+        }
         pdfcraft_create::image_file(&editor.cos, img.object.ok_or("the image has no object")?)
     }
 
@@ -1582,7 +1585,14 @@ fn run_edit(doc: &mut pdfcraft_cos::Document, edit: &Edit, cx: &mut EditCtx) -> 
                 ImageEdit::Flip { horizontal } => {
                     pdfcraft_edit::ImageChange::Transform(pdfcraft_edit::turn_about_centre(img.rect, 0, *horizontal, !*horizontal))
                 }
-                ImageEdit::Replace { name, bytes } => pdfcraft_edit::ImageChange::Replace(embed_image(doc, name, bytes)?.0),
+                ImageEdit::Replace { name, bytes } => {
+                    if img.is_form {
+                        return Err(EditError::Edit(pdfcraft_edit::EditError::Invalid(
+                            "grouped Form artwork cannot be replaced with a bitmap".into(),
+                        )));
+                    }
+                    pdfcraft_edit::ImageChange::Replace(embed_image(doc, name, bytes)?.0)
+                }
                 ImageEdit::Delete => pdfcraft_edit::ImageChange::Delete,
             };
             pdfcraft_edit::change_image(doc, *page, *index, &c)?;

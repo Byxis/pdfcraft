@@ -3489,6 +3489,7 @@ dependencies = [
  "image",
  "pdfcraft-cos",
  "pdfcraft-engine",
+ "pdfcraft-model",
  "pdfcraft-organize",
  "pdfcraft-platform",
  "pdfcraft-render",
