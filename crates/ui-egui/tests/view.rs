@@ -92,9 +92,25 @@ fn middle_button_scrolling_keeps_page_colours_in_both_themes() {
             let mut h = harness(&[("zoom", "50")]);
             h.state_mut().set_option("theme", theme).unwrap();
             h.state_mut().set_option("organize", if organize { "on" } else { "off" }).unwrap();
-            for _ in 0..100 {
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+            loop {
+                assert!(
+                    std::time::Instant::now() < deadline,
+                    "render readiness timed out: theme={theme}, organize={organize}, errors={:?}",
+                    h.state().views[0].page_errors()
+                );
                 h.run_steps(2);
                 if !h.state().render_pending() {
+                    // Paint one fresh frame after all requested rasters have arrived.
+                    h.run_steps(1);
+                    if h.state().render_pending() {
+                        continue;
+                    }
+                    assert!(
+                        h.state().views[0].page_errors().is_empty(),
+                        "page render errors: theme={theme}, organize={organize}, errors={:?}",
+                        h.state().views[0].page_errors()
+                    );
                     break;
                 }
                 std::thread::sleep(std::time::Duration::from_millis(5));
@@ -103,7 +119,11 @@ fn middle_button_scrolling_keeps_page_colours_in_both_themes() {
             let at = page.center();
             let ppp = h.ctx.pixels_per_point();
             let before = *h.render().unwrap().get_pixel((at.x * ppp) as u32, (at.y * ppp) as u32);
-            assert_eq!(before, image::Rgba([255, 255, 255, 255]), "the synthetic page is white");
+            assert_eq!(
+                before,
+                image::Rgba([255, 255, 255, 255]),
+                "the synthetic page is white: theme={theme}, organize={organize}, page={page:?}, ppp={ppp}"
+            );
             let anchor = h.state().views[0].viewport_rect().center();
             h.event(egui::Event::PointerMoved(anchor));
             h.event(egui::Event::PointerButton { pos: anchor, button: egui::PointerButton::Middle, pressed: true, modifiers: Modifiers::NONE });

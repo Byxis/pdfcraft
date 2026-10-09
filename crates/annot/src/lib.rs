@@ -1265,7 +1265,11 @@ pub fn set_appearance(doc: &mut Document, r: ObjRef) -> Result<(), AnnotError> {
         }
     }
     let ap = doc.add(Object::Stream(stream));
-    let mut apd = Dict::new();
+    // A copy (a shared /AP is left alone) that keeps unknown entries; the old down and rollover
+    // appearances would show the previous look on press or hover, so they go with the old /N.
+    let mut apd = d.get(b"AP").map(|a| doc.resolve(a)).and_then(|a| a.as_dict().cloned()).unwrap_or_default();
+    apd.remove(b"D");
+    apd.remove(b"R");
     apd.set(b"N".to_vec(), Object::Ref(ap));
     doc.update_dict(r, |d| {
         d.set(b"AP".to_vec(), Object::Dict(apd));
