@@ -2040,3 +2040,50 @@
 	No recent files	Aucun fichier récent
 	Go to page…	Aller à la page…
 	The standard fonts can't draw “{c}” ({code}). Only Western European characters can be added as text for now.	Les polices standard ne peuvent pas afficher « {c} » ({code}). Pour l'instant, seuls les caractères d'Europe occidentale peuvent être ajoutés comme texte.
+	A button	Un bouton
+	A link	Un lien
+	A script	Un script
+	About	À propos
+	Add {what}	Ajouter {what}
+	Added the first {n} PDFs in {folder}	Les {n} premiers PDF de {folder} ont été ajoutés
+	Align fields	Aligner les champs
+	Another file dialog is still open. Finish with it first.	Une autre boîte de dialogue de fichier est encore ouverte. Terminez d'abord avec celle-ci.
+	Basic constraints	Contraintes de base
+	Change document properties	Modifier les propriétés du document
+	Contributors	Contributeurs
+	Couldn't show the file picker. Please try again.	Impossible d'afficher le sélecteur de fichiers. Veuillez réessayer.
+	Distribute fields	Répartir les champs
+	H / Space (hold)	H / Espace (maintenir)
+	Home / End	Début / Fin
+	Inserted text	Texte inséré
+	Mark differences	Marquer les différences
+	Mark for redaction	Marquer pour biffure
+	Mark pages for redaction	Marquer des pages pour biffure
+	Match field sizes	Uniformiser la taille des champs
+	Models	Modèles
+	No PDFs found in {folder}	Aucun PDF trouvé dans {folder}
+	Only continue if you trust this document. An address can carry information from the document, such as what you typed into its form.	Ne continuez que si vous faites confiance à ce document. Une adresse peut transmettre des informations du document, par exemple ce que vous avez saisi dans son formulaire.
+	Place saved {what}	Placer {what} (version enregistrée)
+	Print single-sided. Keep the sheets in order, cut at the marks, then stack the piles left to right, top to bottom.	Imprimez en recto seul. Gardez les feuilles dans l'ordre, découpez aux repères, puis empilez les piles de gauche à droite et de haut en bas.
+	Redo {action}	Rétablir {action}
+	Remove saved {what}	Supprimer {what} (version enregistrée)
+	Run form script	Exécuter le script du formulaire
+	SHA-1 digest	Empreinte SHA-1
+	SHA-256 digest	Empreinte SHA-256
+	Scripted content must be usable with a keyboard and assistive technology. Check the document's scripts.	Le contenu scripté doit être utilisable au clavier et avec les technologies d'assistance. Vérifiez les scripts du document.
+	Squiggly	Ondulé
+	Table rows belong directly in a table or its head, body or foot. Fix the table's tags.	Les lignes de tableau doivent se trouver directement dans un tableau ou dans son en-tête, son corps ou son pied. Corrigez les balises du tableau.
+	That didn't work: an internal error stopped it ({m}).	Cela n'a pas fonctionné : une erreur interne l'a interrompu ({m}).
+	The Windows store's digital IDs couldn't be listed: {e}	Impossible de lister les identités numériques du magasin de certificats Windows : {e}
+	The document changed while you were choosing a file, so nothing was changed.	Le document a changé pendant que vous choisissiez un fichier, donc rien n'a été modifié.
+	The document was closed before it could be saved.	Le document a été fermé avant de pouvoir être enregistré.
+	The pages were extracted but not deleted, because the document changed while you were choosing a folder.	Les pages ont été extraites mais pas supprimées, car le document a changé pendant que vous choisissiez un dossier.
+	Undo {action}	Annuler {action}
+	Unlocked {n} of {m} files	{n} fichier(s) sur {m} déverrouillé(s)
+	Use {what}	Utiliser {what}
+	{who} in this document tried to open an address PdfCraft won't open: {e}.	{who} dans ce document a tenté d'ouvrir une adresse que PdfCraft n'ouvre pas : {e}.
+	{who} in this document tried to open an address PdfCraft won't open: {e}. Only web (http, https) and email (mailto) links open from documents.	{who} dans ce document a tenté d'ouvrir une adresse que PdfCraft n'ouvre pas : {e}. Seuls les liens web (http, https) et e-mail (mailto) s'ouvrent depuis les documents.
+action wizard	Start	Démarrer
+certificate	Subject	Titulaire
+comment menu	Edit	Modifier
+signature pad	Type	Saisir
