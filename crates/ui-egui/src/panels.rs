@@ -917,6 +917,9 @@ fn pages(ui: &mut egui::Ui, t: &Tokens, info: &DocInfo, view: &mut crate::DocVie
             let sense = if editable { Sense::click_and_drag() } else { Sense::click() };
             let (rect, resp) = ui.allocate_exact_size(vec2(w + 16.0, h + 16.0), sense);
             rows.push(rect);
+            if rect.intersects(ui.clip_rect().expand(200.0)) {
+                view.need_thumbnail(i, rect.intersects(ui.clip_rect()));
+            }
             // Only the primary button drags pages (the middle button scrolls, the secondary one opens the menu).
             if resp.drag_started_by(egui::PointerButton::Primary) {
                 if !view.target_pages().contains(&i) {
