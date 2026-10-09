@@ -1979,6 +1979,17 @@ fn xfa_values_from_datasets(doc: &mut pdfcraft_cos::Document) -> Result<Vec<Stri
     for (name, value) in pdfcraft_xfa::read_values(doc, &data) {
         let Some(f) = fields.iter().find(|f| f.name == name) else { continue };
         let new = match value {
+            pdfcraft_xfa::FieldData::Text(t) if matches!(f.kind, pdfcraft_forms::FieldKind::Combo | pdfcraft_forms::FieldKind::List) => {
+                // Saved values, one per line for a multi-select list; shown text stands for
+                // its saved value (an older viewer may have written it).
+                let saved = |v: &str| f.options.iter().find(|(e, s)| e == v || s == v).map_or(v.to_string(), |(e, _)| e.clone());
+                let picked: Vec<String> = if f.has(pdfcraft_forms::flags::MULTI_SELECT) {
+                    t.lines().map(str::trim).filter(|l| !l.is_empty()).map(saved).collect()
+                } else {
+                    vec![saved(t.trim())]
+                };
+                (f.value != picked).then_some(FieldValue::Choice(picked))
+            }
             pdfcraft_xfa::FieldData::Text(t) => (f.value.join("\n") != t).then_some(FieldValue::Text(t)),
             pdfcraft_xfa::FieldData::Check(on) => (f.value.is_empty() == on).then_some(FieldValue::Check(on)),
             pdfcraft_xfa::FieldData::Radio(sel) => (f.value.first() != sel.as_ref()).then_some(FieldValue::Radio(sel)),

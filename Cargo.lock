@@ -3845,9 +3845,12 @@ name = "pdfcraft-xfa"
 version = "0.4.0"
 dependencies = [
  "base64 0.22.1",
+ "image",
  "pdfcraft-cos",
  "pdfcraft-fonts",
+ "png 0.18.1",
  "roxmltree",
+ "sha2",
  "thiserror 2.0.21",
 ]
 
