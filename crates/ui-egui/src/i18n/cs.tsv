@@ -2257,6 +2257,10 @@ certificate	Subject	Subjekt
 	Creator	Aplikace
 	Producer	Producent PDF
 	Offset from centre	Posun od středu
+	Repeat	Opakovat
+	Spacing between copies	Mezera mezi kopiemi
+	Stagger rows	Posunout řádky střídavě
+	Too many copies: increase the spacing or the size.	Příliš mnoho kopií: zvětšete mezeru nebo velikost.
 	Add the files to combine	Přidejte soubory ke sloučení
 	Added the first {n} files in {folder}	Přidáno prvních {n} souborů ze složky {folder}
 	Combine the rest	Sloučit zbývající

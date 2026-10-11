@@ -2235,6 +2235,10 @@ key	Space	Preslednica
 	Rotate page {label} clockwise	Zasukaj stran {label} v smeri urinega kazalca
 	Delete page {label}	Izbriši stran {label}
 	Offset from centre	Zamik od središča
+	Repeat	Ponovi
+	Spacing between copies	Razmik med kopijami
+	Stagger rows	Zamakni vrstice izmenično
+	Too many copies: increase the spacing or the size.	Preveč kopij: povečajte razmik ali velikost.
 	Graphic	Grafika
 	Signer's name	Ime podpisnika
 	Fill & Sign signature	Podpis iz orodja Izpolni in podpiši

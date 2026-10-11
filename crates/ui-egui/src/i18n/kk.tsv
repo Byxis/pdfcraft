@@ -2218,6 +2218,10 @@ key	Space	Бос орын
 	Rotate page {label} clockwise	{label} бетін сағат тілімен бұру
 	Delete page {label}	{label} бетін жою
 	Offset from centre	Ортадан ығысу
+	Repeat	Қайталау
+	Spacing between copies	Көшірмелер арасындағы аралық
+	Stagger rows	Қатарларды кезектестіріп жылжыту
+	Too many copies: increase the spacing or the size.	Көшірмелер тым көп: аралықты немесе өлшемді үлкейтіңіз.
 	Graphic	Графика
 	Signer's name	Қол қоюшының аты
 	Fill & Sign signature	«Толтыру және қол қою» қолтаңбасы

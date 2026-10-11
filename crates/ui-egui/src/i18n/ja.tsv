@@ -812,6 +812,10 @@
 	Appear behind page	ページの背面に表示
 	Appear on top of page	ページの前面に表示
 	Offset from centre	中心からのオフセット
+	Repeat	繰り返す
+	Spacing between copies	コピー間の間隔
+	Stagger rows	行を互い違いにずらす
+	Too many copies: increase the spacing or the size.	コピーが多すぎます。間隔またはサイズを大きくしてください。
 	From colour	色を指定
 	Page Range Options	ページ範囲のオプション
 	Preview: page {p} of {n}	プレビュー: {n} ページ中 {p} ページ

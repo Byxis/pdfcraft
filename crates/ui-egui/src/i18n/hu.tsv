@@ -782,6 +782,10 @@
 	Appear behind page	Az oldal mögött
 	Appear on top of page	Az oldal előtt
 	Offset from centre	Eltolás a középponttól
+	Repeat	Ismétlés
+	Spacing between copies	Távolság a másolatok között
+	Stagger rows	Sorok eltolása
+	Too many copies: increase the spacing or the size.	Túl sok másolat: növelje a távolságot vagy a méretet.
 	From colour	Színből
 	Page Range Options	Oldaltartomány beállításai
 	Preview: page {p} of {n}	Előnézet: {p}. oldal / {n}

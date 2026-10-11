@@ -2224,6 +2224,10 @@ key	Space	Boşluk
 	Rotate page {label} clockwise	{label} sayfasını saat yönünde döndür
 	Delete page {label}	{label} sayfasını sil
 	Offset from centre	Merkezden uzaklık
+	Repeat	Yinele
+	Spacing between copies	Kopyalar arası boşluk
+	Stagger rows	Satırları kaydır
+	Too many copies: increase the spacing or the size.	Çok fazla kopya: aralığı veya boyutu artırın.
 	Graphic	Grafik
 	Signer's name	İmzalayanın adı
 	Fill & Sign signature	Doldur ve İmzala imzası

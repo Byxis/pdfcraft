@@ -493,6 +493,10 @@
 	Appear behind page	显示在页面后面
 	Appear on top of page	显示在页面上层
 	Offset from centre	与中心的偏移
+	Repeat	重复
+	Spacing between copies	副本之间的间距
+	Stagger rows	交错排列行
+	Too many copies: increase the spacing or the size.	副本过多：请增大间距或大小。
 	From colour	使用颜色
 	Page Range Options	页面范围选项
 	Preview: page {p} of {n}	预览：第 {p} 页，共 {n} 页
