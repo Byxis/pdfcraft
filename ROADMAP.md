@@ -443,3 +443,4 @@ Newest first: the date, what moved, and the new overall estimate.
 | 2026-10-05 | major | Honest assessment and "Where we're lacking" added |
 
 - **2026-10-12 (M8):** Redaction cleans indirect and form structure references, preserving surviving form tags.
+- **2026-10-15 (M7):** Watermark position from an anchor: one of nine (top/centre/bottom by left/centre/right, a 3x3 grid in the dialog, `horizontal_from`/`vertical_from` in `doc_watermark`) and a distance from it in pt, in, mm, cm or picas, so one setting fits any page size. Centre/centre keeps the old placement exactly (#2527).

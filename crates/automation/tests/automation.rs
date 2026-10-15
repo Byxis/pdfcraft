@@ -1864,6 +1864,34 @@ fn watermarks_move_from_the_page_centre_through_tools() {
 }
 
 #[test]
+fn watermarks_are_placed_from_an_edge_through_tools() {
+    let dir = workdir("wm-anchor");
+    let mut a = auto(&dir);
+    let doc = ok(&mut a, "doc_open", json!({ "path": "a.pdf" }))["doc"].as_u64().unwrap();
+    // Top left, 36 points in from each edge: the text's top-left corner (y grows downwards) sits
+    // about that far from the page edges, whatever the page size.
+    ok(
+        &mut a,
+        "doc_watermark",
+        json!({ "doc": doc, "pages": [1], "text": "DRAFT", "rotation": 0, "font_size": 20, "horizontal_from": "left", "vertical_from": "top", "offset_x": 36, "offset_y": 36 }),
+    );
+    ok(&mut a, "doc_save", json!({ "doc": doc, "path": "anchored.pdf" }));
+    let copy = ok(&mut a, "doc_open", json!({ "path": "anchored.pdf" }))["doc"].as_u64().unwrap();
+    let found = ok(&mut a, "text_find", json!({ "doc": copy, "query": "DRAFT" }));
+    let rect = found["matches"][0]["rects"][0].as_array().unwrap_or_else(|| panic!("DRAFT is on the page: {found}"));
+    let (x, y) = (rect[0].as_f64().unwrap(), rect[1].as_f64().unwrap());
+    // The mark's box starts 36 points in; the glyphs sit a little inside it.
+    assert!((36.0..44.0).contains(&x), "36 points from the left edge: {x}");
+    assert!((36.0..52.0).contains(&y), "36 points from the top edge: {y}");
+    // An anchor that is not one of the three is refused, not ignored.
+    for (key, value) in [("horizontal_from", "top"), ("vertical_from", "left"), ("horizontal_from", "Left"), ("vertical_from", "")] {
+        let mut args = json!({ "doc": doc, "text": "X" });
+        args[key] = json!(value);
+        assert!(matches!(a.call("doc_watermark", &args), Err(ToolError::InvalidArgs(_))), "{key}={value}");
+    }
+}
+
+#[test]
 fn watermarks_repeat_as_a_grid_through_tools() {
     let dir = workdir("wm-repeat");
     let mut a = auto(&dir);

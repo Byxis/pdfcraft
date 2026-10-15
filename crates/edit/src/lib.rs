@@ -109,14 +109,60 @@ pub struct Watermark {
     pub rotation: f64,
     /// Draw behind the page content instead of on top.
     pub behind: bool,
-    /// Offset of the centre from the page centre, in points (right, up).
+    /// Where the mark sits on the page: the edge or centre `offset` is measured from.
+    pub anchor: Anchor,
+    /// Distance from the `anchor`, in points. From the centre it moves the mark's centre (right,
+    /// up). From an edge it is the gap between that edge of the page and the matching edge of the
+    /// mark (turned by `rotation`), positive inward.
     pub offset: [f64; 2],
     /// Draw the watermark again and again across the page (`None`: once).
     pub repeat: Option<Repeat>,
 }
 
+/// Which side of the page a watermark is measured from, left to right.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum HorizontalAnchor {
+    Left,
+    #[default]
+    Center,
+    Right,
+}
+
+/// Which side of the page a watermark is measured from, top to bottom.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum VerticalAnchor {
+    Top,
+    #[default]
+    Center,
+    Bottom,
+}
+
+/// The nine places a watermark can be anchored: Acrobat's Top / Center / Bottom and Left /
+/// Center / Right. The default, centre and centre, is where a watermark has always been.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Anchor {
+    pub horizontal: HorizontalAnchor,
+    pub vertical: VerticalAnchor,
+}
+
+/// The centre of one copy, in page points (y up): `offset` from the anchor, for a copy whose
+/// turned box is `size` on a page of `page` points.
+fn anchored_centre(anchor: Anchor, offset: [f64; 2], size: (f64, f64), page: (f64, f64)) -> (f64, f64) {
+    let x = match anchor.horizontal {
+        HorizontalAnchor::Left => offset[0] + size.0 / 2.0,
+        HorizontalAnchor::Center => page.0 / 2.0 + offset[0],
+        HorizontalAnchor::Right => page.0 - offset[0] - size.0 / 2.0,
+    };
+    let y = match anchor.vertical {
+        VerticalAnchor::Bottom => offset[1] + size.1 / 2.0,
+        VerticalAnchor::Center => page.1 / 2.0 + offset[1],
+        VerticalAnchor::Top => page.1 - offset[1] - size.1 / 2.0,
+    };
+    (x, y)
+}
+
 /// A watermark drawn as a grid of copies. One copy sits at the watermark's centre (the page
-/// centre plus its `offset`); the others follow at its size plus `spacing` in each direction.
+/// anchor plus its `offset`); the others follow at its size plus `spacing` in each direction.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Repeat {
     /// Gap between neighbouring copies, in points (horizontal, vertical).
@@ -147,6 +193,7 @@ impl Default for Watermark {
             opacity: 0.5,
             rotation: 45.0,
             behind: false,
+            anchor: Anchor::default(),
             offset: [0.0; 2],
             repeat: None,
         }
@@ -172,7 +219,7 @@ pub fn watermark_centres(wm: &Watermark, page: (f64, f64)) -> Result<Vec<(f64, f
 /// The font size and the copies of the watermark on one page.
 fn layout_for(wm: &Watermark, lines: &[&str], page: (f64, f64)) -> Result<Layout, EditError> {
     let (copy, font_size) = mark_box(wm, lines, page);
-    let anchor = (page.0 / 2.0 + wm.offset[0], page.1 / 2.0 + wm.offset[1]);
+    let anchor = anchored_centre(wm.anchor, wm.offset, copy, page);
     let centres = match wm.repeat {
         Some(rep) => tile_centres(page, anchor, copy, rep)?,
         None => vec![anchor],

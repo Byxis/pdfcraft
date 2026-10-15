@@ -160,6 +160,167 @@ fn watermark_offset_moves_the_centre_right_and_up() {
     assert!(mark.contains("1 0 0 1 200 450 cm"), "{mark}");
 }
 
+/// The old placement, written out: the page centre plus the offset.
+fn old_centre(page: (f64, f64), offset: [f64; 2]) -> (f64, f64) {
+    (page.0 / 2.0 + offset[0], page.1 / 2.0 + offset[1])
+}
+
+#[test]
+fn the_default_anchor_places_a_watermark_exactly_as_the_centre_offset_always_did() {
+    for page in [(595.0, 842.0), (612.0, 792.0), (200.0, 100.0)] {
+        for offset in [[0.0, 0.0], [-100.0, 50.0], [30.5, -72.25], [1.0e4, -1.0e4]] {
+            for rotation in [0.0, 45.0, 90.0] {
+                let wm = Watermark { text: "DRAFT".into(), rotation, offset, ..Watermark::default() };
+                assert_eq!(wm.anchor, Anchor::default());
+                assert_eq!(watermark_centres(&wm, page).unwrap(), vec![old_centre(page, offset)], "{page:?} {offset:?} {rotation}");
+            }
+        }
+    }
+}
+
+/// The box a text watermark fills once turned, as the layout sees it.
+fn turned_box(wm: &Watermark, page: (f64, f64)) -> (f64, f64) {
+    let lines: Vec<&str> = wm.text.trim().lines().collect();
+    mark_box(wm, &lines, page).0
+}
+
+#[test]
+fn an_edge_anchor_puts_the_edge_of_the_turned_mark_at_the_distance_inward() {
+    for rotation in [0.0, 30.0, 45.0, 90.0, 135.0] {
+        for page in [(595.0, 842.0), (612.0, 792.0)] {
+            let wm = Watermark {
+                text: "CONFIDENTIAL".into(),
+                font_size: 40.0,
+                rotation,
+                anchor: Anchor { horizontal: HorizontalAnchor::Right, vertical: VerticalAnchor::Bottom },
+                offset: [28.0, 28.0],
+                ..Watermark::default()
+            };
+            let (bw, bh) = turned_box(&wm, page);
+            let [(x, y)] = watermark_centres(&wm, page).unwrap()[..] else { panic!("one copy") };
+            let close = |a: f64, b: f64| (a - b).abs() < 1e-9;
+            assert!(close(page.0 - (x + bw / 2.0), 28.0), "right gap, rotation {rotation} on {page:?}");
+            assert!(close(y - bh / 2.0, 28.0), "bottom gap, rotation {rotation} on {page:?}");
+            // Whole mark on the page.
+            assert!(x - bw / 2.0 >= 0.0 && y + bh / 2.0 <= page.1);
+        }
+    }
+}
+
+#[test]
+fn each_anchor_measures_inward_from_its_own_edge() {
+    let page = (600.0, 800.0);
+    let base = Watermark { text: "AB".into(), font_size: 20.0, rotation: 0.0, offset: [10.0, 20.0], ..Watermark::default() };
+    let (bw, bh) = turned_box(&base, page);
+    let at = |h, v| {
+        let wm = Watermark { anchor: Anchor { horizontal: h, vertical: v }, ..base.clone() };
+        watermark_centres(&wm, page).unwrap()[0]
+    };
+    use HorizontalAnchor as H;
+    use VerticalAnchor as V;
+    assert_eq!(at(H::Left, V::Top), (10.0 + bw / 2.0, 800.0 - 20.0 - bh / 2.0));
+    assert_eq!(at(H::Right, V::Top), (600.0 - 10.0 - bw / 2.0, 800.0 - 20.0 - bh / 2.0));
+    assert_eq!(at(H::Left, V::Bottom), (10.0 + bw / 2.0, 20.0 + bh / 2.0));
+    assert_eq!(at(H::Center, V::Bottom), (310.0, 20.0 + bh / 2.0), "centre keeps +x right");
+    assert_eq!(at(H::Left, V::Center), (10.0 + bw / 2.0, 420.0), "centre keeps +y up");
+}
+
+#[test]
+fn an_anchored_mark_keeps_its_distance_on_pages_of_different_sizes() {
+    let wm = Watermark {
+        text: "CONFIDENTIAL".into(),
+        font_size: 30.0,
+        anchor: Anchor { horizontal: HorizontalAnchor::Right, vertical: VerticalAnchor::Bottom },
+        offset: [28.35, 28.35],
+        ..Watermark::default()
+    };
+    let gaps: Vec<(f64, f64)> = [(595.0, 842.0), (612.0, 792.0), (300.0, 300.0)]
+        .iter()
+        .map(|&page| {
+            let (bw, bh) = turned_box(&wm, page);
+            let (x, y) = watermark_centres(&wm, page).unwrap()[0];
+            (page.0 - (x + bw / 2.0), y - bh / 2.0)
+        })
+        .collect();
+    for (right, bottom) in gaps {
+        assert!((right - 28.35).abs() < 1e-9 && (bottom - 28.35).abs() < 1e-9, "{right} {bottom}");
+    }
+}
+
+#[test]
+fn an_anchor_is_measured_on_the_page_as_shown_whatever_its_rotation_crop_or_unit() {
+    let mut sizes = Vec::new();
+    for rotation in [0, 90, 180, 270] {
+        let mut doc = image_page();
+        let page = pdfcraft_model::pages(&doc)[0].obj;
+        doc.update_dict(page, |d| {
+            d.set(b"CropBox".to_vec(), Object::Array([10, 20, 500, 750].map(Object::Int).to_vec()));
+            d.set(b"Rotate".to_vec(), Object::Int(rotation));
+            d.set(b"UserUnit".to_vec(), Object::Int(2));
+        })
+        .unwrap();
+        let shown = page_list(&doc)[0].display_size(&doc);
+        sizes.push(shown);
+        let wm = Watermark {
+            text: "DRAFT".into(),
+            font_size: 20.0,
+            rotation: 0.0,
+            anchor: Anchor { horizontal: HorizontalAnchor::Right, vertical: VerticalAnchor::Bottom },
+            offset: [28.0, 28.0],
+            ..Watermark::default()
+        };
+        let (bw, bh) = turned_box(&wm, shown);
+        let (x, y) = watermark_centres(&wm, shown).unwrap()[0];
+        assert!((shown.0 - (x + bw / 2.0) - 28.0).abs() < 1e-9 && (y - bh / 2.0 - 28.0).abs() < 1e-9, "rotation {rotation}: {shown:?}");
+        add_watermark(&mut doc, &[0], &wm, false).unwrap();
+        let marks = streams(&doc, 0);
+        let mark = marks.iter().find(|c| c.contains("/PCMark /Watermark")).expect("the watermark stream");
+        // Drawn in display space, under the page's own view matrix.
+        assert!(mark.contains(&format!("1 0 0 1 {} {} cm", n(x), n(y))), "rotation {rotation}: {mark}");
+    }
+    // A quarter turn swaps the sides of the shown page, so the corner moves with it.
+    assert_eq!(sizes[0], sizes[2]);
+    assert_eq!(sizes[1], sizes[3]);
+    assert_eq!((sizes[0].0, sizes[0].1), (sizes[1].1, sizes[1].0), "the shown page is turned");
+}
+
+#[test]
+fn with_an_anchor_the_repeated_grid_is_built_from_the_anchored_copy() {
+    let page = (600.0, 800.0);
+    let wm = Watermark {
+        text: "AB".into(),
+        font_size: 20.0,
+        rotation: 0.0,
+        anchor: Anchor { horizontal: HorizontalAnchor::Left, vertical: VerticalAnchor::Top },
+        offset: [0.0, 0.0],
+        repeat: Some(Repeat { spacing: [10.0, 10.0], stagger: false }),
+        ..Watermark::default()
+    };
+    let (bw, bh) = turned_box(&wm, page);
+    let centres = watermark_centres(&wm, page).unwrap();
+    assert!(centres.contains(&(bw / 2.0, 800.0 - bh / 2.0)), "a whole tile sits in the top-left corner");
+}
+
+#[test]
+fn an_anchored_watermark_is_drawn_where_the_layout_says() {
+    let mut doc = fixture();
+    let wm = Watermark {
+        text: "DRAFT".into(),
+        font_size: 20.0,
+        rotation: 0.0,
+        anchor: Anchor { horizontal: HorizontalAnchor::Left, vertical: VerticalAnchor::Bottom },
+        offset: [36.0, 36.0],
+        ..Watermark::default()
+    };
+    let (_, bh) = turned_box(&wm, (600.0, 800.0));
+    let (x, y) = watermark_centres(&wm, (600.0, 800.0)).unwrap()[0];
+    add_watermark(&mut doc, &[0], &wm, false).unwrap();
+    let s = streams(&doc, 0);
+    let mark = s.iter().find(|c| c.contains("/PCMark /Watermark")).expect("the watermark stream");
+    assert!(mark.contains(&format!("1 0 0 1 {} {} cm", n(x), n(y))), "{mark}");
+    assert!((y - bh / 2.0 - 36.0).abs() < 1e-9);
+}
+
 #[test]
 fn a_watermark_offset_that_is_not_finite_is_refused() {
     for offset in [[f64::NAN, 0.0], [0.0, f64::INFINITY], [f64::NEG_INFINITY, 0.0]] {

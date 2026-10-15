@@ -1096,7 +1096,7 @@ impl Automation {
     }
 
     fn marks(&mut self, tool: &str, a: &Args) -> Result<Value> {
-        use pdfcraft_engine::{Background, HeaderFooter, MarkKind, Repeat, Watermark};
+        use pdfcraft_engine::{Anchor, Background, HeaderFooter, HorizontalAnchor, MarkKind, Repeat, VerticalAnchor, Watermark};
         let n = self.doc(a)?.info.pages.len();
         let pages = match a.opt_ints("pages")? {
             Some(_) => self.pages(a, "pages")?,
@@ -1144,6 +1144,20 @@ impl Automation {
                     }
                     None
                 };
+                let anchor = Anchor {
+                    horizontal: match a.opt_str("horizontal_from")? {
+                        None | Some("center") => HorizontalAnchor::Center,
+                        Some("left") => HorizontalAnchor::Left,
+                        Some("right") => HorizontalAnchor::Right,
+                        Some(other) => return Err(ToolError::InvalidArgs(format!("horizontal_from must be left, center or right, not \"{other}\""))),
+                    },
+                    vertical: match a.opt_str("vertical_from")? {
+                        None | Some("center") => VerticalAnchor::Center,
+                        Some("top") => VerticalAnchor::Top,
+                        Some("bottom") => VerticalAnchor::Bottom,
+                        Some(other) => return Err(ToolError::InvalidArgs(format!("vertical_from must be top, center or bottom, not \"{other}\""))),
+                    },
+                };
                 let wm = Watermark {
                     text,
                     source: None,
@@ -1153,6 +1167,7 @@ impl Automation {
                     opacity: a.opt_num("opacity")?.unwrap_or(d.opacity),
                     rotation: a.opt_num("rotation")?.unwrap_or(d.rotation),
                     behind: a.opt_bool("behind")?.unwrap_or(false),
+                    anchor,
                     offset: [
                         a.opt_num("offset_x")?.unwrap_or(0.0).clamp(-WATERMARK_MAX_OFFSET, WATERMARK_MAX_OFFSET),
                         a.opt_num("offset_y")?.unwrap_or(0.0).clamp(-WATERMARK_MAX_OFFSET, WATERMARK_MAX_OFFSET),

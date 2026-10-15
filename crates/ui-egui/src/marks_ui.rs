@@ -3,13 +3,53 @@
 //! preview of the current page. "Update" opens the same dialog in replace mode.
 
 use egui::{Align, Color32, CornerRadius, Layout, Rect, Stroke, pos2, vec2};
-use pdfcraft_engine::{Background, Edit, HeaderFooter, MarkKind, MarkSource, Repeat, Watermark, watermark_centres};
+use pdfcraft_engine::{
+    Anchor, Background, Edit, HeaderFooter, HorizontalAnchor, MarkKind, MarkSource, Repeat, VerticalAnchor, Watermark, watermark_centres,
+};
 
 use crate::theme::{self, Tokens};
 use crate::{PdfCraftApp, widgets};
 
 /// How far a watermark may be moved from the page centre, in points.
 const MAX_OFFSET: f64 = 20_000.0;
+
+/// The unit the watermark's distances are shown in. The engine always works in points; this is
+/// only how the dialog's fields read and write them.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum LengthUnit {
+    #[default]
+    Points,
+    Inches,
+    Millimetres,
+    Centimetres,
+    Picas,
+}
+
+impl LengthUnit {
+    pub const ALL: [LengthUnit; 5] = [Self::Points, Self::Inches, Self::Millimetres, Self::Centimetres, Self::Picas];
+
+    /// The symbol, the same in every language.
+    pub fn symbol(self) -> &'static str {
+        match self {
+            Self::Points => "pt",
+            Self::Inches => "in",
+            Self::Millimetres => "mm",
+            Self::Centimetres => "cm",
+            Self::Picas => "pc",
+        }
+    }
+
+    /// How many points one of this unit is.
+    pub fn points(self) -> f64 {
+        match self {
+            Self::Points => 1.0,
+            Self::Inches => 72.0,
+            Self::Millimetres => 72.0 / 25.4,
+            Self::Centimetres => 72.0 / 2.54,
+            Self::Picas => 12.0,
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Subset {
@@ -86,6 +126,8 @@ pub struct MarksDraft {
     pub date_format: usize,
     /// Watermark: size the text to the page.
     pub fit: bool,
+    /// Watermark: the unit its distances are shown in.
+    pub unit: LengthUnit,
     /// Source ▸ File (watermark or background): the file picked, and the page of a PDF (1-based).
     pub use_file: bool,
     pub file: Option<(String, std::sync::Arc<Vec<u8>>)>,
@@ -104,6 +146,7 @@ impl Default for MarksDraft {
             page_format: 0,
             date_format: 0,
             fit: true,
+            unit: LengthUnit::default(),
             use_file: false,
             file: None,
             file_page: 1,
@@ -115,6 +158,50 @@ const PAGE_FORMATS: [&str; 5] = ["<<1>>", "<<1 of n>>", "<<1/n>>", "<<Page 1>>",
 const DATE_FORMATS: [&str; 6] = ["<<m/d/yyyy>>", "<<mm/dd/yyyy>>", "<<d/m/yyyy>>", "<<yyyy-mm-dd>>", "<<m/d/yy>>", "<<mmmm d, yyyy>>"];
 const BOX_NAMES: [&str; 6] =
     ["Left Header Text", "Center Header Text", "Right Header Text", "Left Footer Text", "Center Footer Text", "Right Footer Text"];
+
+/// The nine places a watermark can be anchored, as a 3 × 3 grid laid out like the page: pick one
+/// and the distances below are measured from that edge or corner (the middle cell: the centre).
+fn anchor_grid(ui: &mut egui::Ui, t: &Tokens, anchor: &mut Anchor) {
+    let cell = vec2(20.0, 20.0);
+    ui.vertical(|ui| {
+        ui.spacing_mut().item_spacing = vec2(2.0, 2.0);
+        for v in [VerticalAnchor::Top, VerticalAnchor::Center, VerticalAnchor::Bottom] {
+            ui.horizontal(|ui| {
+                for h in [HorizontalAnchor::Left, HorizontalAnchor::Center, HorizontalAnchor::Right] {
+                    let chosen = anchor.vertical == v && anchor.horizontal == h;
+                    let side = |middle: bool, first: bool, a: &str, b: &str| {
+                        if middle {
+                            tl!("Centre").to_string()
+                        } else if first {
+                            a.to_string()
+                        } else {
+                            b.to_string()
+                        }
+                    };
+                    let name = format!(
+                        "{}, {}",
+                        side(v == VerticalAnchor::Center, v == VerticalAnchor::Top, tl!("Top"), tl!("Bottom")),
+                        side(h == HorizontalAnchor::Center, h == HorizontalAnchor::Left, tl!("Left"), tl!("Right")),
+                    );
+                    let (rect, resp) = ui.allocate_exact_size(cell, egui::Sense::click());
+                    resp.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::RadioButton, true, chosen, &name));
+                    let fill = if chosen {
+                        t.accent
+                    } else if resp.hovered() {
+                        t.hover
+                    } else {
+                        t.pressed
+                    };
+                    ui.painter().rect_filled(rect, CornerRadius::same(3), fill);
+                    ui.painter().rect_stroke(rect, CornerRadius::same(3), Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
+                    if crate::theme::hand(resp).on_hover_text(name).clicked() {
+                        *anchor = Anchor { horizontal: h, vertical: v };
+                    }
+                }
+            });
+        }
+    });
+}
 
 fn color_button(ui: &mut egui::Ui, c: &mut [f64; 3]) {
     let mut f = c.map(|v| v as f32);
@@ -282,11 +369,52 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens, kind: M
                         widgets::radio_value(ui, &mut d.wm.behind, false, tl!("Appear on top of page"));
                     });
                     ui.horizontal(|ui| {
-                        ui.label(tl!("Offset from centre"));
-                        ui.label(tl!("Horizontal"));
-                        ui.add(egui::DragValue::new(&mut d.wm.offset[0]).range(-MAX_OFFSET..=MAX_OFFSET).suffix(" pt"));
-                        ui.label(tl!("Vertical"));
-                        ui.add(egui::DragValue::new(&mut d.wm.offset[1]).range(-MAX_OFFSET..=MAX_OFFSET).suffix(" pt"));
+                        ui.label(tl!("Position"));
+                        anchor_grid(ui, t, &mut d.wm.anchor);
+                        ui.vertical(|ui| {
+                            ui.horizontal(|ui| {
+                                ui.label(tl!("Distance"));
+                                egui::ComboBox::from_id_salt("wm-unit").width(48.0).selected_text(d.unit.symbol()).show_ui(ui, |ui| {
+                                    for u in LengthUnit::ALL {
+                                        ui.selectable_value(&mut d.unit, u, u.symbol());
+                                    }
+                                });
+                            });
+                            let k = d.unit.points();
+                            let limit = MAX_OFFSET / k;
+                            ui.horizontal(|ui| {
+                                ui.label(tl!("Horizontal"));
+                                let mut x = d.wm.offset[0] / k;
+                                if ui
+                                    .add(
+                                        egui::DragValue::new(&mut x)
+                                            .range(-limit..=limit)
+                                            .speed(0.1)
+                                            .max_decimals(2)
+                                            .suffix(format!(" {}", d.unit.symbol())),
+                                    )
+                                    .changed()
+                                {
+                                    d.wm.offset[0] = x * k;
+                                }
+                            });
+                            ui.horizontal(|ui| {
+                                ui.label(tl!("Vertical"));
+                                let mut y = d.wm.offset[1] / k;
+                                if ui
+                                    .add(
+                                        egui::DragValue::new(&mut y)
+                                            .range(-limit..=limit)
+                                            .speed(0.1)
+                                            .max_decimals(2)
+                                            .suffix(format!(" {}", d.unit.symbol())),
+                                    )
+                                    .changed()
+                                {
+                                    d.wm.offset[1] = y * k;
+                                }
+                            });
+                        });
                     });
                     ui.horizontal(|ui| {
                         let mut on = d.wm.repeat.is_some();
@@ -549,6 +677,35 @@ mod tests {
         }
         // Off by default: a watermark is drawn once.
         assert_eq!(MarksDraft::default().wm.repeat, None);
+    }
+
+    #[test]
+    fn the_watermark_edit_carries_the_anchor() {
+        let mut d = MarksDraft::default();
+        d.wm.text = "CONFIDENTIAL".into();
+        d.wm.anchor = Anchor { horizontal: HorizontalAnchor::Right, vertical: VerticalAnchor::Bottom };
+        d.wm.offset = [28.0, 28.0];
+        match edit(&d, MarkKind::Watermark, 3) {
+            Edit::AddWatermark { settings, .. } => {
+                assert_eq!(settings.anchor, Anchor { horizontal: HorizontalAnchor::Right, vertical: VerticalAnchor::Bottom });
+                assert_eq!(settings.offset, [28.0, 28.0], "the engine's unit is the point, whatever the dialog shows");
+            }
+            other => panic!("expected AddWatermark, got {other:?}"),
+        }
+        // Centred unless the grid says otherwise: a watermark has always been placed from the centre.
+        assert_eq!(MarksDraft::default().wm.anchor, Anchor::default());
+    }
+
+    #[test]
+    fn units_convert_to_points() {
+        assert_eq!(LengthUnit::Points.points(), 1.0);
+        assert_eq!(LengthUnit::Inches.points(), 72.0);
+        assert_eq!(LengthUnit::Picas.points(), 12.0);
+        // 1 cm is 28.35 points, 10 mm too.
+        assert!((LengthUnit::Centimetres.points() - 28.346_456_69).abs() < 1e-6);
+        assert!((LengthUnit::Millimetres.points() * 10.0 - LengthUnit::Centimetres.points()).abs() < 1e-9);
+        let symbols: Vec<_> = LengthUnit::ALL.iter().map(|u| u.symbol()).collect();
+        assert_eq!(symbols, ["pt", "in", "mm", "cm", "pc"]);
     }
 
     #[test]
